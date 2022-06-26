@@ -11,7 +11,7 @@ set importFile=D:/hogehoge/fugafuga.png
 set exportFile=./piyopiyo.png
 set gamma_sat=1
 set gamma_light=1.5
-call process_test.exe %importFile% %exportFile% %gamma_sat% %gamma_light%
+call pc88_like_image.exe %importFile% %exportFile% %gamma_sat% %gamma_light%
 ```
 パラメータの意味
 * importFile: 入力ファイルパス
