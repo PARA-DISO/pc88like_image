@@ -52,7 +52,10 @@ fn pc88_like(
   let mut i:usize = 0;
   // 1pxに対応する元画像の画素数
   let k_max = width as f64 / HARF_SCALE as f64;
-  let k_max = vec![k_max as usize, (k_max + 0.5) as usize];
+  let k_max = (0..8).map(|x| {
+    (k_max + 0.125 * x as f64) as usize
+  }).collect::<Vec<usize>>();
+  // let k_max = vec![k_max as usize, (k_max + 0.5) as usize];
   // 横方向の縮小
   while i<height {
     let mut j = 0;
@@ -62,7 +65,7 @@ fn pc88_like(
       let mut sum_g = 0.;
       let mut sum_b = 0.;
       let mut s = 0.;
-      let end = k + k_max[j & 1] * 4;
+      let end = k + k_max[j & 7] * 4;
       // 対象範囲における色ごとの総和
       while k< end && k < (width * 4) {
         sum_r += img_data.data[i * width*4 + k] as f64;
@@ -83,11 +86,14 @@ fn pc88_like(
   let mut vrtcl = vec![255u8; scaled_height * HARF_SCALE * 4];
   i = 0;
   // 1pxに対応する画素数
-  let k_max = [(1. / scale + 0.5) as usize, (1. / scale) as usize];
+  let k_max = (0..8).map(|x| {
+    (1. / scale + 0.125 * x as f64)as usize
+  }).collect::<Vec<usize>>();
+  // let k_max = [(1. / scale + 0.5) as usize, (1. / scale) as usize];
   // 高さ方向の縮小
   let mut k = 0;
   while i < scaled_height {
-    let end = k + k_max[i & 1];
+    let end = k + k_max[i & 7];
     let k_tmp = k;
     let mut j:usize = 0;
     while j < HARF_SCALE {
