@@ -26,7 +26,7 @@ pub fn pc88_like_means(
   let k_max = (0..8).map(|x| {
     (k_max + 0.125 * x as f64) as usize
   }).collect::<Vec<usize>>();
-  
+
   // 横方向の縮小
   while i<height {
     let mut j = 0;
@@ -165,6 +165,7 @@ pub fn pc88_like_means(
       let b_lens = [
         b*b,(thresh-b)*(thresh-b),(255-b)*(255-b)
       ];
+
       // 27色との距離を計算
       let lens = [
         r_lens[0] + g_lens[0] + b_lens[0], // black     + black
@@ -180,7 +181,7 @@ pub fn pc88_like_means(
         r_lens[1] + g_lens[0] + b_lens[1], // purple    + black
         r_lens[1] + g_lens[0] + b_lens[2], // purple    + blue
         r_lens[1] + g_lens[1] + b_lens[0], // yellow    + black
-        r_lens[1] + g_lens[1] + b_lens[1], // gray      + gray
+        r_lens[1] + g_lens[1] + b_lens[1], // black     + white
         r_lens[1] + g_lens[1] + b_lens[2], // blue      + white
         r_lens[1] + g_lens[2] + b_lens[0], // yellow    + green
         r_lens[1] + g_lens[2] + b_lens[1], // green     + white

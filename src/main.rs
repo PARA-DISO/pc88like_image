@@ -3,33 +3,27 @@ use std::env;
 
 mod img_processor_core;
 use img_processor_core::{file_io,color_cvt, ImageData};
-// mod process_3ch_ootu;
 mod process;
 // 画像読み込みの構造体
 
-
 fn main() {
     // コマンドライン引数を受け取る
-    // let args: Vec<String> = env::args().collect();
-    // let fname = &args[1];
-    // let export_fname = &args[2];
+    let args: Vec<String> = env::args().collect();
+    let fname = &args[1];
+    let export_fname = &args[2];
     // let gamma_sat:f32 = args[3].parse().unwrap();
     // let gamma_light:f32 = args[4].parse().unwrap();
     // 画像読み込み
-    // let mut image_data = file_io::file_load(fname.to_string());
-    let mut image_data = file_io::file_load("C:/Users/wdtgy/Pictures/20220708_191612.jpg");
+    let mut image_data = file_io::file_load(fname);
     // RGBAフォーマットに変換
     if image_data.format == 3 {
       image_data.data = color_cvt::rgb2rgba(image_data.data);
     }
-    // image_data = pc88_like(
-    //   &image_data,
-    //   [gamma_sat,gamma_light]
-    // );
     image_data = process::pc88_like_means(&image_data);
     // 画像の出力
-    file_io::file_save("out.png", &image_data);
+    file_io::file_save(export_fname, &image_data);
 }
+
 // PC8801風の画像に変換する関数
 fn pc88_like(
   img_data: &ImageData,
