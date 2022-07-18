@@ -1,7 +1,7 @@
 use super::img_processor_core::ImageData;
 use array_macro::array;
 pub fn pc88_like_means(
-  img_data: &ImageData
+  img_data: &ImageData,gamma:f64
 ) -> ImageData {
   // 固定サイズ(横)
   const WIDTH:usize = 640;
@@ -26,7 +26,8 @@ pub fn pc88_like_means(
   let k_max = (0..8).map(|x| {
     (k_max + 0.125 * x as f64) as usize
   }).collect::<Vec<usize>>();
-  
+  let gamma_collections = (0..256).map(|x| ((x as f64 / 255f64).powf(gamma) * 255f64) as i32).collect::<Vec<i32>>();
+
   // 横方向の縮小
   while i<height {
     let mut j = 0;
@@ -55,12 +56,12 @@ pub fn pc88_like_means(
   }
   // 縦方向に縮小した画像バッファ
   let mut vrtcl = vec![[0i32,0i32,0i32]; scaled_height * HARF_SCALE];
+  let mut gray_scale = vec![0u8; scaled_height * HARF_SCALE];
   i = 0;
   // 1pxに対応する画素数
   let k_max = (0..8).map(|x| {
     (1. / scale + 0.125 * x as f64)as usize
   }).collect::<Vec<usize>>();
-  let mut hist = [0usize;256];
   // 高さ方向の縮小
   let mut k = 0;
   while i < scaled_height {
@@ -84,58 +85,16 @@ pub fn pc88_like_means(
       let px = [(sum_r / s) as i32,(sum_g / s) as i32,(sum_b / s) as i32];
       // 各色の平均を求める
       vrtcl[i * HARF_SCALE + j] = px.clone();
-      // ヒストグラム(輝度)の作成
-      let gray =( 0.2125 * px[0] as f64 +  0.7154*px[1] as f64 + 0.0721*px[2] as f64) as usize;
-      hist[gray]+=1;
+      // グレースケール画像の生成
+      let gray =( 0.2125 * px[0] as f64 +  0.7154*px[1] as f64 + 0.0721*px[2] as f64) as u8;
+      gray_scale[i * HARF_SCALE + j] = gray;
       j += 1;
     }
     i += 1;
   }
-  // 大津の二値化法による閾値?計算
-  // ヒストグラムからデータを生成
-  // 画素数の積分データ
-  let mut int_px_hist = vec![0usize;256];
-  // 輝度値の重みづけ積分データ
-  let mut int_weighting = vec![0usize;256];
-  int_px_hist[0] = hist[0];
-  int_weighting[0] = hist[0];
-  for i in 1..256 {
-    int_px_hist[i] = int_px_hist[i-1]+ hist[i];
-    int_weighting[i] = int_weighting[i-1] + (i+1)*hist[i];
-  }
-  // 閾値計算
-  const CALC_MAX:usize = 255usize;
-  let mut thresh = 0i32;
-  let mut max = 0f64;
-  for i in 0..CALC_MAX {
-    let w1 = int_px_hist[i];
-    let w2 = int_px_hist[CALC_MAX-1] - w1;
-    // キャストして再定義
-    let w1 = w1 as f64;
-    let w2 = w2 as f64;
-    // クラスごとの輝度値の総和
-    let sum1 = int_weighting[i];
-    let sum2 = int_weighting[CALC_MAX-1] - sum1;
-    // 平均値
-    let m1 = if w1 != 0. {
-      sum1 as f64 / w1
-    } else {
-      0f64
-    };
-    let m2 = if w2 != 0. {
-      sum2 as f64 / w2
-    } else {
-      0f64
-    };
-    let temp = w1 * w2 * (m1-m2) * (m1-m2);
-    // print!("{},", temp);
-    if temp > max {
-      max = temp;
-      thresh = i as i32;
-    }
-  }
-  println!("{}", thresh);
-
+  let gray_scale = boxfilter_1ch(
+    gray_scale,scaled_height, HARF_SCALE,5,10f64
+  );
   // 画像バッファ(高さ1/2)
   let mut replaced_data = vec![255u8; WIDTH * scaled_height * 4];
   // pc88 カラーパレット
@@ -155,6 +114,7 @@ pub fn pc88_like_means(
     let idx_dst = i*640*4;
     for j in 0..320 {
       let [r,g,b] = vrtcl[idx_src+j];
+      let thresh = gray_scale[idx_src+j] as i32;
       // 各データの距離を計算
       let r_lens = [
         r*r,(thresh-r)*(thresh-r),(255-r)*(255-r)
@@ -209,46 +169,39 @@ pub fn pc88_like_means(
         0 => (6,6),
         1 => (4,6),
         2 => (4,4),
-
         3 => (2,6),
         4 => (3,6),
         5 => (3,4),
-
         6 => (2,2),
         7 => (2,3),
         8 => (3,3),
-
         9 => (0,6),
         10 => (5,6),
         11 => (5,4),
-
         12 => (1,6),
         13 => (6,7),
         14 => (4,7),
-
         15 => (1,2),
         16 => (2,7),
         17 => (3,7),
-
         18 => (0,0),
         19 => (5,0),
         20 => (5,5),
-
         21 => (0,1),
         22 => (0,7),
         23 => (5,7),
-
         24 => (1,1),
         25 => (1,7),
         26 => (7,7),
         _ => {println!("{}", idx);unreachable!()}
       };
-      //
+      // 色配置を交互に
       let pallet_num = if i&1==1 {
           (pallet_num.1,pallet_num.0)
       } else {
         pallet_num
       };
+      // 出力
       [
         replaced_data[idx_dst+j*8],
         replaced_data[idx_dst+j*8+1],
@@ -286,4 +239,76 @@ pub fn pc88_like_means(
     format: 4,
     data:dest
   }
+}
+
+fn boxfilter_1ch(
+  mut src:Vec<u8>,
+  width:usize,height:usize,
+  size:i32,
+  c: f64
+) -> Vec<u8> {
+  let len = src.len();
+  let r = (size-1)>>1;
+  let n = (size*size) as f64;
+  let extend_height = height+(r+r) as usize;
+  let extend_width = width+(r+r) as usize;
+  let mut dest_integral = vec![0usize; extend_height * extend_width];
+
+  // init
+  dest_integral[0] = src[0] as usize;
+  for i in 1..extend_width {
+    let idx = i as i32 - r;
+    let idx = if idx < 0 {
+      0usize
+    } else if idx < width as i32 {
+      idx as usize
+    } else {
+      width-1
+    };
+    // print!("{},", dest_integral[i-1]);
+    dest_integral[i] = dest_integral[i-1] + src[idx] as usize;
+
+  }
+  // integral
+  for i in 1..extend_height {
+    let mut sum = 0usize;
+    let idx_dep = (i-1)*extend_width;
+    let idx_src = i as i32 - r;
+    let idx_src = if idx_src < 0 {
+      0usize
+    } else if idx_src < height as i32 {
+      idx_src as usize * width
+    } else {
+      (height - 1) * width
+    };
+    for j in 0..extend_width {
+      let idx_src_cols = j as i32 -r;
+      let idx_src_cols = if idx_src_cols < 0 {
+        0usize
+      } else if idx_src_cols < width as i32 {
+        idx_src_cols as usize
+      } else {
+        width-1
+      };
+      sum += src[idx_src+idx_src_cols] as usize;
+      dest_integral[i*extend_width+j] = dest_integral[idx_dep+j] + sum;
+    }
+  }
+  // box filtering
+  let mut dest = vec![0u8;len];
+  for i in 0..height {
+    let top = i*extend_width;
+    let bottom = (i+(r+r) as usize)*extend_width;
+    let dest_pos = i*width;
+    for j in 0..width {
+      let right = j+(r+r) as usize;
+      let top_left = dest_integral[top+j] as i64;
+      let bottom_left = dest_integral[bottom+j] as i64;
+      let bottom_right = dest_integral[bottom+right] as i64;
+      let top_right = dest_integral[top+right] as i64;
+      let s = (bottom_right - bottom_left - top_right + top_left) as f64;
+      dest[dest_pos+j] = (s / n - c )as u8;
+    }
+  }
+  dest
 }

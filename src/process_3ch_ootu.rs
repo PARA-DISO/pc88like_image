@@ -1,7 +1,7 @@
 use super::img_processor_core::ImageData;
 use array_macro::array;
 pub fn pc88_like_means(
-  img_data: &ImageData
+  img_data: &ImageData,gamma:f64
 ) -> ImageData {
   // 固定サイズ(横)
   const WIDTH:usize = 640;
@@ -26,7 +26,8 @@ pub fn pc88_like_means(
   let k_max = (0..8).map(|x| {
     (k_max + 0.125 * x as f64) as usize
   }).collect::<Vec<usize>>();
-  
+  let gamma_collections = (0..256).map(|x| ((x as f64 / 255f64).powf(gamma) * 255f64) as i32).collect::<Vec<i32>>();
+
   // 横方向の縮小
   while i<height {
     let mut j = 0;
@@ -60,7 +61,9 @@ pub fn pc88_like_means(
   let k_max = (0..8).map(|x| {
     (1. / scale + 0.125 * x as f64)as usize
   }).collect::<Vec<usize>>();
-  let mut hist = [0usize;256];
+  let mut hist_r = [0usize;256];
+  let mut hist_g = [0usize;256];
+  let mut hist_b = [0usize;256];
   // 高さ方向の縮小
   let mut k = 0;
   while i < scaled_height {
@@ -84,9 +87,10 @@ pub fn pc88_like_means(
       let px = [(sum_r / s) as i32,(sum_g / s) as i32,(sum_b / s) as i32];
       // 各色の平均を求める
       vrtcl[i * HARF_SCALE + j] = px.clone();
-      // ヒストグラム(輝度)の作成
-      let gray =( 0.2125 * px[0] as f64 +  0.7154*px[1] as f64 + 0.0721*px[2] as f64) as usize;
-      hist[gray]+=1;
+      // ヒストグラムの作成
+      hist_r[px[0] as usize]+=1;
+      hist_g[px[1] as usize]+=1;
+      hist_b[px[2] as usize]+=1;
       j += 1;
     }
     i += 1;
@@ -94,48 +98,10 @@ pub fn pc88_like_means(
   // 大津の二値化法による閾値?計算
   // ヒストグラムからデータを生成
   // 画素数の積分データ
-  let mut int_px_hist = vec![0usize;256];
-  // 輝度値の重みづけ積分データ
-  let mut int_weighting = vec![0usize;256];
-  int_px_hist[0] = hist[0];
-  int_weighting[0] = hist[0];
-  for i in 1..256 {
-    int_px_hist[i] = int_px_hist[i-1]+ hist[i];
-    int_weighting[i] = int_weighting[i-1] + (i+1)*hist[i];
-  }
-  // 閾値計算
-  const CALC_MAX:usize = 255usize;
-  let mut thresh = 0i32;
-  let mut max = 0f64;
-  for i in 0..CALC_MAX {
-    let w1 = int_px_hist[i];
-    let w2 = int_px_hist[CALC_MAX-1] - w1;
-    // キャストして再定義
-    let w1 = w1 as f64;
-    let w2 = w2 as f64;
-    // クラスごとの輝度値の総和
-    let sum1 = int_weighting[i];
-    let sum2 = int_weighting[CALC_MAX-1] - sum1;
-    // 平均値
-    let m1 = if w1 != 0. {
-      sum1 as f64 / w1
-    } else {
-      0f64
-    };
-    let m2 = if w2 != 0. {
-      sum2 as f64 / w2
-    } else {
-      0f64
-    };
-    let temp = w1 * w2 * (m1-m2) * (m1-m2);
-    // print!("{},", temp);
-    if temp > max {
-      max = temp;
-      thresh = i as i32;
-    }
-  }
-  println!("{}", thresh);
-
+  let thresh_r = calc_thresh(&hist_r);
+  let thresh_g = calc_thresh(&hist_g);
+  let thresh_b = calc_thresh(&hist_b);
+  println!("{:?}", [thresh_r,thresh_g,thresh_b]);
   // 画像バッファ(高さ1/2)
   let mut replaced_data = vec![255u8; WIDTH * scaled_height * 4];
   // pc88 カラーパレット
@@ -157,13 +123,13 @@ pub fn pc88_like_means(
       let [r,g,b] = vrtcl[idx_src+j];
       // 各データの距離を計算
       let r_lens = [
-        r*r,(thresh-r)*(thresh-r),(255-r)*(255-r)
+        r*r,(thresh_r-r)*(thresh_r-r),(255-r)*(255-r)
       ];
       let g_lens = [
-        g*g,(thresh-g)*(thresh-g),(255-g)*(255-g)
+        g*g,(thresh_g-g)*(thresh_g-g),(255-g)*(255-g)
       ];
       let b_lens = [
-        b*b,(thresh-b)*(thresh-b),(255-b)*(255-b)
+        b*b,(thresh_b-b)*(thresh_b-b),(255-b)*(255-b)
       ];
       // 27色との距離を計算
       let lens = [
@@ -286,4 +252,46 @@ pub fn pc88_like_means(
     format: 4,
     data:dest
   }
+}
+fn calc_thresh(hist:&[usize])->i32 {
+  let mut int_px_hist = vec![0usize;256];
+  // 輝度値の重みづけ積分データ
+  let mut int_weighting = vec![0usize;256];
+  int_px_hist[0] = hist[0];
+  int_weighting[0] = hist[0];
+  for i in 1..256 {
+    int_px_hist[i] = int_px_hist[i-1]+ hist[i];
+    int_weighting[i] = int_weighting[i-1] + (i+1)*hist[i];
+  }
+  // 閾値計算
+  let mut thresh = 0i32;
+  let mut max = 0f64;
+  for i in 1..255 {
+    let w1 = int_px_hist[i];
+    let w2 = int_px_hist[254] - w1;
+    // キャストして再定義
+    let w1 = w1 as f64;
+    let w2 = w2 as f64;
+    // クラスごとの輝度値の総和
+    let sum1 = int_weighting[i];
+    let sum2 = int_weighting[254] - sum1;
+    // 平均値
+    let m1 = if w1 != 0. {
+      sum1 as f64 / w1
+    } else {
+      0f64
+    };
+    let m2 = if w2 != 0. {
+      sum2 as f64 / w2
+    } else {
+      0f64
+    };
+    let temp = w1 * w2 * (m1-m2) * (m1-m2);
+    // print!("{},", temp);
+    if temp > max {
+      max = temp;
+      thresh = i as i32;
+    }
+  }
+  return thresh;
 }

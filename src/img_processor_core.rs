@@ -17,8 +17,9 @@ pub mod file_io {
   pub fn file_load(file_path : &str) -> super::ImageData {
     let file = File::open(&file_path).expect("faild to open file");
     let guess = mime_guess::from_path(file_path);
-    let mime_type = guess.first();
-    if mime_type == Some(mime_guess::mime::IMAGE_JPEG) {
+    let mime_type = guess.first().unwrap();
+    println!("{:?}", mime_type);
+    if mime_type == mime_guess::mime::IMAGE_JPEG || mime_type == "image/pjpeg" {
       println!("jpeg");
       let mut decoder = jpeg_decoder::Decoder::new(BufReader::new(file));
       let pixels = decoder.decode().expect("faild to decode image");
@@ -33,7 +34,7 @@ pub mod file_io {
         format: px_format,
         data:pixels
       };
-    } else if mime_type == Some(mime_guess::mime::IMAGE_PNG) {
+    } else if mime_type == mime_guess::mime::IMAGE_PNG {
       let decoder = png::Decoder::new(file);
       let mut reader = decoder.read_info().unwrap();
       let mut buf = vec![0; reader.output_buffer_size()];
@@ -55,7 +56,8 @@ pub mod file_io {
         data: send_data
       };
     } else {
-      return super::ImageData {height:0, width:0, format:0, data:Vec::new()};
+      unreachable!();
+      // return super::ImageData {height:0, width:0, format:0, data:Vec::new()};
     }
   }
   // 画像出力
