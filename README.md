@@ -27,4 +27,5 @@ call pc88_like_image.exe %importFile% %exportFile% %gamma_sat% %gamma_light%
 出力
 * pngフォーマット
 * jpegフォーマット
+
 JPEGの場合、品質100で出力します。

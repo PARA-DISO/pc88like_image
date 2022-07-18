@@ -14,7 +14,7 @@ pub mod file_io {
   use std::path::Path;
   use std::io::BufWriter;
   // 画像読み込み
-  pub fn file_load(file_path : String) -> super::ImageData {
+  pub fn file_load(file_path : &str) -> super::ImageData {
     let file = File::open(&file_path).expect("faild to open file");
     let guess = mime_guess::from_path(file_path);
     let mime_type = guess.first();
@@ -59,7 +59,7 @@ pub mod file_io {
     }
   }
   // 画像出力
-  pub fn file_save(file_path : String, img_data :&super::ImageData) {
+  pub fn file_save(file_path : &str, img_data :&super::ImageData) {
     let guess = mime_guess::from_path(&file_path);
     let mime_type = guess.first();
     if mime_type == Some(mime_guess::mime::IMAGE_JPEG) {
