@@ -1,143 +1,10 @@
-use super::img_processor_core::ImageData;
-use array_macro::array;
-pub fn pc88_like_means(
-  img_data: &ImageData
-) -> ImageData {
-  // 固定サイズ(横)
+use super::image_processor_core::{ImageData,Image,Format};
+use super::test_mod::{scaling_down,saturation_correction};
+// use array_macro::array;
+pub fn pc88_like(
+  img_data: ImageData<u8>
+) -> ImageData<u8> {
   const WIDTH:usize = 640;
-  // 実縮小サイズ(横)
-  const HARF_SCALE:usize = 320;
-  // 画像データ
-  let width = img_data.width as usize;
-  let height = img_data.height as usize;
-  // 画像縮小サイズの決定
-  let scale = WIDTH as f64 / (2. * (width as f64));
-  let scaled_height = (scale * (height as f64)) as usize;
-  let scaled_height:usize = if (scaled_height & 1) == 1 {
-    scaled_height - 1
-  } else {
-    scaled_height
-  };
-  // 横方向の縮小画像バッファ
-  let mut hrzn = vec![0u8; HARF_SCALE * 3 * height];
-  let mut i:usize = 0;
-  // 1pxに対応する元画像の画素数
-  let k_max = width as f64 / HARF_SCALE as f64;
-  let k_max = (0..8).map(|x| {
-    (k_max + 0.125 * x as f64) as usize
-  }).collect::<Vec<usize>>();
-
-  // 横方向の縮小
-  while i<height {
-    let mut j = 0;
-    let mut k = 0;
-    while j < HARF_SCALE {
-      let mut sum_r = 0.;
-      let mut sum_g = 0.;
-      let mut sum_b = 0.;
-      let mut s = 0.;
-      let end = k + k_max[j & 7] * 4;
-      // 対象範囲における色ごとの総和
-      while k< end && k < (width * 4) {
-        sum_r += img_data.data[i * width*4 + k] as f64;
-        sum_g += img_data.data[i * width*4 + k + 1] as f64;
-        sum_b += img_data.data[i * width*4 + k + 2] as f64;
-        k+=4;
-        s+=1.;
-      }
-      // 各色の平均
-      hrzn[i * HARF_SCALE*3 + j*3    ] = (sum_r / s) as u8;
-      hrzn[i * HARF_SCALE*3 + j*3 + 1] = (sum_g / s) as u8;
-      hrzn[i * HARF_SCALE*3 + j*3 + 2] = (sum_b / s) as u8;
-      j += 1;
-    }
-    i+=1;
-  }
-  // 縦方向に縮小した画像バッファ
-  let mut vrtcl = vec![[0i32,0i32,0i32]; scaled_height * HARF_SCALE];
-  i = 0;
-  // 1pxに対応する画素数
-  let k_max = (0..8).map(|x| {
-    (1. / scale + 0.125 * x as f64)as usize
-  }).collect::<Vec<usize>>();
-  let mut hist = [0usize;256];
-  // 高さ方向の縮小
-  let mut k = 0;
-  while i < scaled_height {
-    let end = k + k_max[i & 7];
-    let k_tmp = k;
-    let mut j:usize = 0;
-    while j < HARF_SCALE {
-      let mut sum_r = 0.;
-      let mut sum_g = 0.;
-      let mut sum_b = 0.;
-      let mut s = 0.;
-      k = k_tmp;
-      // 対象範囲における色ごとの総和
-      while k < end && k < height {
-        sum_r += hrzn[k * HARF_SCALE*3 + j*3    ] as f64;
-        sum_g += hrzn[k * HARF_SCALE*3 + j*3 + 1] as f64;
-        sum_b += hrzn[k * HARF_SCALE*3 + j*3 + 2] as f64;
-        s += 1.;
-        k += 1;
-      }
-      let px = [(sum_r / s) as i32,(sum_g / s) as i32,(sum_b / s) as i32];
-      // 各色の平均を求める
-      vrtcl[i * HARF_SCALE + j] = px.clone();
-      // ヒストグラム(輝度)の作成
-      let gray =( 0.2125 * px[0] as f64 +  0.7154*px[1] as f64 + 0.0721*px[2] as f64) as usize;
-      hist[gray]+=1;
-      j += 1;
-    }
-    i += 1;
-  }
-  // 大津の二値化法による閾値?計算
-  // ヒストグラムからデータを生成
-  // 画素数の積分データ
-  let mut int_px_hist = vec![0usize;256];
-  // 輝度値の重みづけ積分データ
-  let mut int_weighting = vec![0usize;256];
-  int_px_hist[0] = hist[0];
-  int_weighting[0] = hist[0];
-  for i in 1..256 {
-    int_px_hist[i] = int_px_hist[i-1]+ hist[i];
-    int_weighting[i] = int_weighting[i-1] + (i+1)*hist[i];
-  }
-  // 閾値計算
-  const CALC_MAX:usize = 255usize;
-  let mut thresh = 0i32;
-  let mut max = 0f64;
-  for i in 0..CALC_MAX {
-    let w1 = int_px_hist[i];
-    let w2 = int_px_hist[CALC_MAX-1] - w1;
-    // キャストして再定義
-    let w1 = w1 as f64;
-    let w2 = w2 as f64;
-    // クラスごとの輝度値の総和
-    let sum1 = int_weighting[i];
-    let sum2 = int_weighting[CALC_MAX-1] - sum1;
-    // 平均値
-    let m1 = if w1 != 0. {
-      sum1 as f64 / w1
-    } else {
-      0f64
-    };
-    let m2 = if w2 != 0. {
-      sum2 as f64 / w2
-    } else {
-      0f64
-    };
-    let temp = w1 * w2 * (m1-m2) * (m1-m2);
-    // print!("{},", temp);
-    if temp > max {
-      max = temp;
-      thresh = i as i32;
-    }
-  }
-  println!("{}", thresh);
-
-  // 画像バッファ(高さ1/2)
-  let mut replaced_data = vec![255u8; WIDTH * scaled_height * 4];
   // pc88 カラーパレット
   const COLOR_PALLET:[[u8; 3]; 8] = [
     [255, 0,   0],   // red
@@ -149,12 +16,23 @@ pub fn pc88_like_means(
     [0,   0,   0],   // black
     [255, 255, 255]  // white
   ];
+  // 画像を縮小し、彩度に鮮やかになるよう補正
+  let scaled_image = saturation_correction(scaling_down(img_data),1.5);
+  let thresh = ootu_method(scaled_image.to_gray_scale());
+  println!("{}", thresh);
+  let scaled_height = scaled_image.height;
+  // 画像バッファ(高さ1/2)
+  let mut replaced_data = vec![255u8; WIDTH * scaled_height<<2];
   // 画素データの決定
+  let scaled_image = scaled_image.data;
   for i in 0..scaled_height {
-    let idx_src = i*320;
-    let idx_dst = i*640*4;
+    let idx_src = i*320<<2;
+    let idx_dst = i*WIDTH << 2;
     for j in 0..320 {
-      let [r,g,b] = vrtcl[idx_src+j];
+      let idx_src = idx_src + (j<<2);
+      let r = scaled_image[idx_src] as i32;
+      let g = scaled_image[idx_src+1] as i32;
+      let b = scaled_image[idx_src+2] as i32;
       // 各データの距離を計算
       let r_lens = [
         r*r,(thresh-r)*(thresh-r),(255-r)*(255-r)
@@ -264,9 +142,9 @@ pub fn pc88_like_means(
   }
 
   // 高さ方向を倍に拡大
-  let display_height = scaled_height * 2;
-  let mut dest = vec![255u8; display_height * WIDTH * 4];
-  i = 0;
+  let display_height = scaled_height + scaled_height;
+  let mut dest = vec![255u8; display_height * WIDTH <<2];
+  let mut i = 0;
   while i<scaled_height {
     let mut j = 0;
     while j < 4*WIDTH {
@@ -282,9 +160,59 @@ pub fn pc88_like_means(
     i += 1;
   }
   ImageData {
-    height:display_height as u32,
-    width: WIDTH as u32,
-    format: 4,
+    height:display_height,
+    width: WIDTH,
+    format: Format::RGBA,
     data:dest
   }
+}
+fn ootu_method(src:ImageData<u8> /* gray scale */) -> i32 {
+  let mut hist = vec![0usize;256];
+  src.data.iter().for_each(|x| {
+    hist[*x as usize]+=1;
+  });
+  // 大津の二値化法による閾値?計算
+  // ヒストグラムからデータを生成
+  // 画素数の積分データ
+  let mut int_px_hist = vec![0usize;256];
+  // 輝度値の重みづけ積分データ
+  let mut int_weighting = vec![0usize;256];
+  int_px_hist[0] = hist[0];
+  int_weighting[0] = hist[0];
+  for i in 1..256 {
+    int_px_hist[i] = int_px_hist[i-1]+ hist[i];
+    int_weighting[i] = int_weighting[i-1] + (i+1)*hist[i];
+  }
+  // 閾値計算
+  const CALC_MAX:usize = 255usize;
+  let mut thresh = 0i32;
+  let mut max = 0f64;
+  for i in 0..CALC_MAX {
+    let w1 = int_px_hist[i];
+    let w2 = int_px_hist[CALC_MAX-1] - w1;
+    // キャストして再定義
+    let w1 = w1 as f64;
+    let w2 = w2 as f64;
+    // クラスごとの輝度値の総和
+    let sum1 = int_weighting[i];
+    let sum2 = int_weighting[CALC_MAX-1] - sum1;
+    // 平均値
+    let m1 = if w1 != 0. {
+      sum1 as f64 / w1
+    } else {
+      0f64
+    };
+    let m2 = if w2 != 0. {
+      sum2 as f64 / w2
+    } else {
+      0f64
+    };
+    let temp = w1 * w2 * (m1-m2) * (m1-m2);
+    // print!("{},", temp);
+    if temp > max {
+      max = temp;
+      thresh = i as i32;
+    }
+  }
+  return thresh
 }
