@@ -11,14 +11,16 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     let fname = &args[1];
     let export_fname = &args[2];
+    let gamma:f32 = args[3].parse().unwrap();
+    let gamma:f32 = 1. + gamma/ 10.;
     // 画像読み込み
     let image_data = file_io::file_load(fname);
     // RGBAフォーマットに変換
     // let image_data = image_data.to_hsva();
     let image_data = image_data.to_rgba();
-    // let image_data = test_mod::saturation_correction(image_data,0.5);
+    // let image_data = test_mod::saturation_correction(image_data,0.45);
     // let image_data = process::test_function(&image_data);
-    let image_data = process::pc88_like(image_data);
+    let image_data = process::pc88_like(image_data,gamma);
     // // 画像の出力
     file_io::file_save(export_fname, &image_data);
 

@@ -1,21 +1,32 @@
 use super::image_processor_core::ImageData;
 use super::image_processor_core::Image;
 pub fn saturation_correction(src:ImageData<u8>,t:f32) -> ImageData<u8> {
-  let mut hsva_data = src.to_hsva();
-  let pixels = hsva_data.data.iter().enumerate();
-  hsva_data.data = pixels.map(|x| {
-      if x.0 & 3 != 0 && x.0 & 1 == 1 {
-        correction_function((*x.1)/100f32,t) * 100f32
+  let mut hsla_data = src.to_hsla();
+  let pixels = hsla_data.data.iter().enumerate();
+  hsla_data.data = pixels.map(|x| {
+      if x.0 & 3 == 1 {
+        correction_function(*x.1,t)
+        // *x.1
       } else {
         *x.1
       }
   }).collect::<Vec<f32>>();
-  hsva_data.to_rgba()
+  hsla_data.to_rgba()
 }
 // Note: ガンマ補正のがいいかも 普通の使い道的にはいい感じだけどね
 fn correction_function(x:f32,t:f32) ->f32 {
-  let tmp = 1f32 - t;
-  4f32*tmp*x*x*x -6f32*tmp*x*x+(3f32-2f32*t)*x
+  // let tmp = 1f32 - t;
+  // 4f32*tmp*x*x*x -6f32*tmp*x*x+(3f32-2f32*t)*x
+  let x = x / 100.;
+  let x = if x<0.25 {
+    t*x
+  } else if x < 0.5 {
+    (0.5-0.25*t)/0.25 * (x - 0.25) + t*0.25
+  } else {
+    x
+  };
+  x*100.
+  // (x/100f32).powf(t) * 100f32
 }
 
 pub fn scaling_down(src:ImageData<u8>) -> ImageData<u8> {

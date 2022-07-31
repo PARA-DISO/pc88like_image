@@ -299,10 +299,11 @@ fn hsva2hsla (mut src:Vec<f32>) -> Vec<f32> {
     let s = src[i+1] / 100.;
     let max = src[i+2] / 100.;
     let a = src[i+3];
-    let l = max * (2. - s) / 2.;
+    // let  = v;
+    let min = max * (1. - s);
     src[i] = h;
-    src[i+1] = s * max * 100.;
-    src[i+2] = l * 100.;
+    src[i+1] = (max - min) * 100.;
+    src[i+2] = (max + min) * 50.;
     src[i+3] = a;
     i += 4;
   }
@@ -316,10 +317,11 @@ fn hsla2hsva (mut src:Vec<f32>) -> Vec<f32> {
    let s = src[i+1] / 100.;
    let l = src[i+2] / 100.;
    let a = src[i+3];
-   let v = (s + 2. * l) * 50.;
-   src[i] = h;
-   src[i+1] = s / v * 100.;
-   src[i+2] = v;
+   let max = 0.5 * (s + l + l);
+   let min = 0.5 * (l + l - s);
+   src[i  ] = h;
+   src[i+1] = (max - min) / max * 100.;
+   src[i+2] = max * 100.;
    src[i+3] = a;
    i += 4;
  }

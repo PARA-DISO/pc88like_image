@@ -2,7 +2,8 @@ use super::image_processor_core::{ImageData,Image,Format};
 use super::test_mod::{scaling_down,saturation_correction};
 // use array_macro::array;
 pub fn pc88_like(
-  img_data: ImageData<u8>
+  img_data: ImageData<u8>,
+  gamma: f32
 ) -> ImageData<u8> {
   const WIDTH:usize = 640;
   // pc88 カラーパレット
@@ -17,7 +18,7 @@ pub fn pc88_like(
     [255, 255, 255]  // white
   ];
   // 画像を縮小し、彩度に鮮やかになるよう補正
-  let scaled_image = saturation_correction(scaling_down(img_data),1.5);
+  let scaled_image = saturation_correction(scaling_down(img_data),gamma);
   let thresh = ootu_method(scaled_image.to_gray_scale());
   println!("{}", thresh);
   let scaled_height = scaled_image.height;
